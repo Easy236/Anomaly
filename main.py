@@ -1,4 +1,5 @@
 import torch, study, random, processing, training, threshold, examples
+import pandas
 import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,43 +9,27 @@ from sklearn.model_selection import train_test_split
 
 sns.set_theme(style='darkgrid')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+class_names = ['1', '3', '5', '6', '8']
+
 
 """ЗАГРУЗКА ДАННЫХ"""
 
-#data0(train)
-#data1(test)
-#train
-#test
-df = train.append(test)
-#df = df.sample(frac=1.0)
-#CLASS_NORMAL
-#class_names
-# Переименование последнего столбца
-new_columns = list(df.columns)
-new_columns[-1] = 'target'
-df.columns = new_columns
+data = pandas.read_csv(data_2.csv)
 
 """ИСЛЕДОВАНИЕ ДАННЫХ"""
 
-ax = sns.countplot(df.target)
+print('Колличество значений:', data.cid.value_counts())
+
+ax = sns.countplot(data.cid)
 ax.set_xticklabels(class_names)
-# plt.show()
-classes = df.target.unique()
-fig, axs = plt.subplots(nrows=len(classes) // 3 + 1, ncols=3, sharey=True, figsize=(10, 6))
-for i, cls in enumerate(classes):
-    ax = axs.flat[i]
-    data = df[df.target == cls] \
-        .drop(labels='target', axis=1) \
-        .mean(axis=0) \
-        .to_numpy()
-    study.plot_time_series_class(data, class_names[i], ax)
-fig.delaxes(axs.flat[-1])
-fig.tight_layout()
+cid = 1
+anomaly_val = 100.1
+cid_df = data[data.cid == cid].drop(labels='cid', axis=1)
 
 """ПРЕДВАРИТЕЛЬНАЯ ОБРАБОТКА ДАННЫХ"""
 
-normal_df = df[df.target == CLASS_NORMAL].drop(labels='target', axis=1)  # Нормальные данные
-anomaly_df = df[df.target != CLASS_NORMAL].drop(labels='target', axis=1)  # Аномальные данные
+normal_df = cid_df[(cid_df.value < anomaly_val)].drop(labels='number', axis=1)
+anomaly_df = cid_df[(cid_df.value >= anomaly_val)].drop(labels='number', axis=1)
 train_df, val_df = train_test_split(normal_df, test_size=0.15, random_state=random.seed(10))
 val_df, test_df = train_test_split(val_df, test_size=0.5, random_state=random.seed(10))
 train_sequences = train_df.astype(np.float32).to_numpy().tolist()
@@ -70,27 +55,18 @@ torch.save(model, MODEL_PATH)
 """Выбор порога обнаружения аномалий"""
 
 _, losses = threshold.predict(model, train_dataset, device)
-#sns.distplot(losses)
-#THRESHOLD =
+sns.distplot(losses)
+THRESHOLD = 100.1
 
 """Оценка набора данных"""
 
 predictions, pred_losses = threshold.predict(model, test_normal_dataset, device)
-#sns.distplot(pred_losses)
+sns.distplot(pred_losses)
 correct = sum(l <= THRESHOLD for l in pred_losses)
 print(f'Correct normal predictions: {correct}/{len(test_normal_dataset)}')
 anomaly_dataset = test_anomaly_dataset[:len(test_normal_dataset)]
 predictions, pred_losses = threshold.predict(model, anomaly_dataset, device)
-#sns.distplot(pred_losses)
+sns.distplot(pred_losses)
 correct = sum(l > THRESHOLD for l in pred_losses)
 print(f'Correct anomaly predictions: {correct}/{len(anomaly_dataset)}')
-
-"""Примеры"""
-
-fig, axs = plt.subplots(nrows=2, ncols=6, sharex=True, sharey=True, figsize=(16, 5))
-for i, data in enumerate(test_normal_dataset[:6]):
-   examples.plot_prediction(model, data, device, title='Normal', ax=axs[0, i])
-for i, data in enumerate(test_anomaly_dataset[:6]):
-   examples.plot_prediction(model, data, device, title='Anomaly', ax=axs[1, i])
-fig.tight_layout()
-#plt.show()
+plt.show()
